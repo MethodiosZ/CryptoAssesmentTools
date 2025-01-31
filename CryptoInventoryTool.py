@@ -48,25 +48,28 @@ def scan_file(file_path):
             if "3DES" in content:
                 findings.append((file_path, "3DES", "High"))
             # Detect DES
-            if "DES" in content:
+            elif "DES" in content:
                 findings.append((file_path, "DES", "High"))
+            # Detect Weak Hardcoded Keys
+            elif "AES" in content and re.search(r"Key = \".{0,1000000000}\"",content): #max acceptable number for regex
+                findings.append((file_path, "Weak Hardcoded Key", "Medium"))
             # Detect RSA with short keys
-            if "RSA" in content and re.search(r"key_size=([5-9][0-9]{2}|1024)", content):
+            elif "RSA" in content and re.search(r"nextprime\(.{0,1000000000}\)", content): #max acceptable number for regex
                 findings.append((file_path, "RSA with short keys", "High"))
             # Detect weak random key generation
-            if re.search(r"random\.seed\(.+\)|SystemRandom\(\)", content):
+            elif re.search(r"Random\(.+\)|SystemRandom\(\)", content):
                 findings.append((file_path, "Weak random key generation", "Medium"))
             # Detect RSA without proper padding
-            if "RSA" in content and not re.search(r"(OAEP|PKCS1v15)", content):
+            elif "RSA" in content and not re.search(r"(OAEP|PKCS1v15)", content):
                 findings.append((file_path, "RSA without proper padding", "High"))
             # Detect MD5 usage
-            if re.search(r"MD5", content):
+            elif re.search(r"MD5", content):
                 findings.append((file_path, "MD5 usage", "High"))
             # Detect SHA1 usage
-            if re.search(r"SHA1", content):
+            elif re.search(r"SHA1", content):
                 findings.append((file_path, "SHA1 usage", "High"))
             # Detect AES in ECB mode
-            if "AES" in content and re.search(r"ECB", content):
+            elif "AES" in content and "ecb" in content:
                 findings.append((file_path, "AES in ECB mode", "High"))
     except Exception as e:
         print(f"Error scanning file {file_path}: {e}")
