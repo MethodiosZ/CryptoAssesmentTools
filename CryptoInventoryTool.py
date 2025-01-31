@@ -1,10 +1,12 @@
 import os
 import sqlite3
+import re
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-# Database setup
-DB_FILE = "crypto_inventory.db"
+DB_FILE = "crypto_inventory.db" #database name
+Total_files = 0 #Number of files in folder
+
 BEST_PRACTICES = {
     "MD5": "High",
     "SHA1": "High",
@@ -16,8 +18,8 @@ BEST_PRACTICES = {
 }
 
 RISK_LEVELS = {
-    "High": "Critical vulnerabilities that can lead to severe compromise. Must be addressed immediately.",
-    "Medium": "Moderate vulnerabilities that increase risk. Should be addressed soon.",
+    "High": "Critical findings that can lead to severe compromise. Must be addressed immediately.",
+    "Medium": "Moderate findings that increase risk. Should be addressed soon.",
     "Low": "Non-critical issues. Recommended to follow best practices.",
 }
 
@@ -27,7 +29,7 @@ def initialize_database():
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS findings (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             file_path TEXT,
             issue TEXT,
             severity TEXT
@@ -36,6 +38,61 @@ def initialize_database():
     conn.commit()
     conn.close()
 
+# Scan file for weak cryptographic primitives
+def scan_file(file_path):
+    findings = []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            # Detect 3DES
+            if "3DES" in content:
+                findings.append((file_path, "3DES", "High"))
+            # Detect DES
+            if "DES" in content:
+                findings.append((file_path, "DES", "High"))
+            # Detect RSA with short keys
+            if "RSA" in content and re.search(r"key_size=([5-9][0-9]{2}|1024)", content):
+                findings.append((file_path, "RSA with short keys", "High"))
+            # Detect weak random key generation
+            if re.search(r"random\.seed\(.+\)|SystemRandom\(\)", content):
+                findings.append((file_path, "Weak random key generation", "Medium"))
+            # Detect RSA without proper padding
+            if "RSA" in content and not re.search(r"(OAEP|PKCS1v15)", content):
+                findings.append((file_path, "RSA without proper padding", "High"))
+            # Detect MD5 usage
+            if re.search(r"MD5", content):
+                findings.append((file_path, "MD5 usage", "High"))
+            # Detect SHA1 usage
+            if re.search(r"SHA1", content):
+                findings.append((file_path, "SHA1 usage", "High"))
+            # Detect AES in ECB mode
+            if "AES" in content and re.search(r"ECB", content):
+                findings.append((file_path, "AES in ECB mode", "High"))
+    except Exception as e:
+        print(f"Error scanning file {file_path}: {e}")
+    return findings
+
+# Scan folder for files
+def scan_folder(folder_path):
+    all_findings = []
+    global Total_files
+    Total_files = 0
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            if file.endswith((".py", ".java", ".c")):
+                Total_files+=1
+                findings = scan_file(file_path)
+                all_findings.extend(findings)
+    return all_findings
+
+# Save findings to database
+def save_to_database(findings):
+    conn = sqlite3.connect("crypto_inventory.db")
+    cursor = conn.cursor()
+    cursor.executemany("INSERT INTO findings (file_path, issue, severity) VALUES (?, ?, ?)", findings)
+    conn.commit()
+    conn.close()
 
 class CryptoInventoryTool:
     def __init__(self, root):
@@ -71,65 +128,20 @@ class CryptoInventoryTool:
         folder_selected = filedialog.askdirectory()
         if folder_selected:
             self.folder_path.set(folder_selected)
+            self.folder_path = folder_selected
 
     def scan_folder(self):
-        folder = self.folder_path.get()
-        if not folder:
-            messagebox.showerror("Error", "Please select a folder to scan.")
-            return
+        if hasattr(self,"folder_path") and self.folder_path:
+            findings = scan_folder(self.folder_path)
 
-        self.clear_findings()
-
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
-        # Scan files and detect vulnerabilities
-        files_scanned = 0
-        vulnerabilities = {}
-        for root, _, files in os.walk(folder):
-            for file in files:
-                file_path = os.path.join(root, file)
-                file_extension = file.split(".")[-1].lower()
-                files_scanned += 1
-
-                # Analyze file
-                issues = self.analyze_file(file_path)
-                if issues:
-                    if file_extension not in vulnerabilities:
-                        vulnerabilities[file_extension] = 0
-                    vulnerabilities[file_extension] += 1
-
-                    # Store findings in database and table
-                    for issue, severity in issues:
-                        cursor.execute(
-                            "INSERT INTO findings (file_path, issue, severity) VALUES (?, ?, ?)",
-                            (file_path, issue, severity),
-                        )
-                        self.tree.insert("", "end", values=(file_path, issue, severity))
-
-        conn.commit()
-        conn.close()
-
-        # Display scan statistics
-        total_vulnerabilities = sum(vulnerabilities.values())
-        messagebox.showinfo(
-            "Scan Complete",
-            f"Total files scanned: {files_scanned}\n"
-            f"Vulnerable files found: {total_vulnerabilities}\n"
-            + "\n".join([f"{ext}: {count}" for ext, count in vulnerabilities.items()]),
-        )
-
-    def analyze_file(self, file_path):
-        issues = []
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                content = file.read()
-                for issue, severity in BEST_PRACTICES.items():
-                    if issue in content:
-                        issues.append((issue, severity))
-        except Exception as e:
-            print(f"Error reading file {file_path}: {e}")
-        return issues
+        if findings:
+            save_to_database(findings)
+            for file_path, issue, severity in findings:
+                self.tree.insert("","end",values=(file_path,issue,severity))
+            total_findings = len(findings)
+            messagebox.showinfo("Scan complete",f"Scan completed successfully.\nNumer of files scanned: {Total_files}\nTotal findings: {total_findings}")
+        else:
+            messagebox.showinfo("Scan complete",f"Scan completed successfully.\nNumer of files scanned: {Total_files}\nNo vulnerabilities found.")
 
     def explain_risk_levels(self):
         explanation = "\n".join([f"{level}: {desc}" for level, desc in RISK_LEVELS.items()])
