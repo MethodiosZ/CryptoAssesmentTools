@@ -54,10 +54,10 @@ def scan_file(file_path):
                 findings.append((file_path, "RSA without proper padding", "High"))
             # Detect MD5 usage
             elif re.search(r"MD5", content):
-                findings.append((file_path, "MD5 usage", "High"))
+                findings.append((file_path, "MD5", "High"))
             # Detect SHA1 usage
             elif re.search(r"SHA1", content):
-                findings.append((file_path, "SHA1 usage", "High"))
+                findings.append((file_path, "SHA1", "High"))
             # Detect AES in ECB mode
             elif "AES" in content and "ecb" in content:
                 findings.append((file_path, "AES in ECB mode", "High"))

@@ -16,6 +16,12 @@ REPLACEMENT_MAP = {
     "RSA without proper padding": "RSA/OAEP"
 }
 
+REPLACEMENT_TIMES = {
+    "High": "Immediate",
+    "Medium": "Next 5 years",
+    "Low": "Next 10 years"
+}
+
 DB_FILE = "crypto_inventory.db"
 
 def fetch_findings():
@@ -27,7 +33,8 @@ def fetch_findings():
     return findings
 
 def suggest_manual_fixes(issue, severity):
-    return f"- {issue} ({severity} risk) should be replaced with a more secure alternative."
+
+    return f"- This algorithm is considered weak and should be replaced with {REPLACEMENT_MAP[issue]} instead.\nSuggested time for replacement: {REPLACEMENT_TIMES[severity]}"
 
 def show_suggestions(file_path, issues):
     suggestions = "\n".join(issues)
