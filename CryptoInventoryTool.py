@@ -7,16 +7,6 @@ from tkinter import ttk, filedialog, messagebox
 DB_FILE = "crypto_inventory.db" #database name
 Total_files = 0 #Number of files in folder
 
-BEST_PRACTICES = {
-    "MD5": "High",
-    "SHA1": "High",
-    "DES": "High",
-    "3DES": "Medium",
-    "AES-128": "Low",
-    "HardcodedKey": "Medium",
-    "RSA/ECB/NoPadding": "High",
-}
-
 RISK_LEVELS = {
     "High": "Critical findings that can lead to severe compromise. Must be addressed immediately.",
     "Medium": "Moderate findings that increase risk. Should be addressed soon.",
@@ -49,7 +39,7 @@ def scan_file(file_path):
                 findings.append((file_path, "3DES", "High"))
             # Detect DES
             elif "DES" in content:
-                findings.append((file_path, "DES", "High"))
+                findings.append((file_path, "DES", "Medium"))
             # Detect Weak Hardcoded Keys
             elif "AES" in content and re.search(r"Key = \".{0,1000000000}\"",content): #max acceptable number for regex
                 findings.append((file_path, "Weak Hardcoded Key", "Medium"))
@@ -71,6 +61,9 @@ def scan_file(file_path):
             # Detect AES in ECB mode
             elif "AES" in content and "ecb" in content:
                 findings.append((file_path, "AES in ECB mode", "High"))
+            # Detect AES-128 mode
+            elif "AES" in content and "128" in content:
+                findings.append((file_path, "AES-128", "Low"))
     except Exception as e:
         print(f"Error scanning file {file_path}: {e}")
     return findings
