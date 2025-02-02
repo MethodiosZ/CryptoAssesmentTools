@@ -1,6 +1,8 @@
 import os
 import sqlite3
 import re
+import csv
+import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -119,6 +121,8 @@ class CryptoInventoryTool:
         tk.Button(root, text="Explain Risk Levels", command=self.explain_risk_levels).grid(row=2, column=0, pady=5)
         tk.Button(root, text="Print Statistics", command=self.print_statistics).grid(row=2, column=1, pady=5)
         tk.Button(root, text="Clear Findings", command=self.clear_findings).grid(row=2, column=2, pady=5)
+        tk.Button(root,text="Export",command=self.export_to_csv).grid(row=2,column=3,pady=5)
+        tk.Button(root, text="Help", command=self.help_pdf).grid(row=2, column=4, pady=5)
 
     def browse_folder(self):
         folder_selected = filedialog.askdirectory()
@@ -172,12 +176,28 @@ class CryptoInventoryTool:
         conn.commit()
         conn.close()
 
+    def export_to_csv(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv",filetypes=[("CSV files","*.csv"),("All files","*")])
+        if not file_path:
+            return
+        with open(file_path,mode="w",newline="",encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["File","Issue","Severity"])
+            for row in self.tree.get_children():
+                writer.writerow(self.tree.item(row,"values"))
+        messagebox.showinfo("Export Successful!","Findings exported successfully to csv.")
+
     def sort_column(self, event):
         data = [(self.tree.set(child, "Severity"), child) for child in self.tree.get_children()]
         data.sort(key=lambda x: x[0])
         for index, (_, child) in enumerate(data):
             self.tree.move(child, "", index)
-
+    def help_pdf(self):
+        pdf_path = "Team17_Report.pdf"
+        if os.path.exists(pdf_path):
+            subprocess.run(["open" if os.name == "posix" else "start", pdf_path],shell=True)
+        else:
+            messagebox.showerror("Error","Document does not exist!")
 
 if __name__ == "__main__":
     initialize_database()
